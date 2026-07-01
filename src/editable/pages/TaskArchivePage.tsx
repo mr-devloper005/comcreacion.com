@@ -9,6 +9,8 @@ import { taskPageMetadata } from '@/config/site.content'
 import { taskPageVoices } from '@/editable/content/task-pages.content'
 import { EditableSiteShell } from '@/editable/shell/EditableSiteShell'
 import { getTaskTheme, taskThemeStyle } from '@/editable/theme/task-themes'
+import { ScrollReveal } from '@/editable/components/ScrollReveal'
+import { Ads } from '@/lib/ads'
 
 export const revalidate = 3
 
@@ -66,7 +68,7 @@ const taskGrid: Record<TaskKey, string> = {
 }
 
 // Shared premium surface: hairline border, soft radius, smooth lift on hover.
-const cardBase = 'group block rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_32px_72px_rgba(15,23,42,0.14)]'
+const cardBase = 'group block rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] transition duration-500 hover:-translate-y-1.5 hover:border-[var(--tk-accent)]/30 hover:shadow-[0_32px_72px_rgba(18,18,18,0.16)]'
 
 export async function EditableTaskArchiveRoute({
   task,
@@ -93,17 +95,19 @@ export function TaskArchiveView({ task, posts, pagination, category, basePath }:
   const label = taskConfig?.label || task
   const categoryLabel = category === 'all' ? 'All categories' : CATEGORY_OPTIONS.find((item) => item.slug === category)?.name || category
 
+
+  
   return (
     <EditableSiteShell>
       <main style={taskThemeStyle(task)} className="min-h-screen bg-[var(--tk-bg)] text-[var(--tk-text)]">
         <header className="relative overflow-hidden border-b border-[var(--tk-line)]">
           <div className="pointer-events-none absolute inset-x-0 -top-40 h-96 bg-[radial-gradient(60%_60%_at_50%_0%,var(--tk-glow),transparent_70%)]" />
           <div className="relative mx-auto max-w-[var(--editable-container)] px-6 py-20 sm:py-28 lg:px-8">
-            <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.34em] text-[var(--tk-accent)]">
+            <ScrollReveal as="div" className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.34em] text-[var(--tk-accent)]">
               <span>{theme.kicker}</span>
               <span className="h-1 w-1 rounded-full bg-[var(--tk-accent)] opacity-50" />
               <span className="text-[var(--tk-muted)]">{label}</span>
-            </div>
+            </ScrollReveal>
             <h1 className="editable-display mt-6 max-w-3xl text-balance text-[2.5rem] font-semibold leading-[1.06] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
               {voice?.headline || `Browse ${label}`}
             </h1>
@@ -138,12 +142,14 @@ export function TaskArchiveView({ task, posts, pagination, category, basePath }:
             </div>
           </div>
         </header>
-
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <Ads slot="header" showLabel eager className="mx-auto w-full" />
+      </div>
         <section className="mx-auto max-w-[var(--editable-container)] px-6 py-16 sm:py-20 lg:px-8">
           {posts.length ? (
-            <div className={taskGrid[task]}>
+            <ScrollReveal as="div" className={taskGrid[task]}>
               {posts.map((post, index) => <ArchivePostCard key={post.id || post.slug} post={post} task={task} basePath={basePath} index={index} />)}
-            </div>
+            </ScrollReveal>
           ) : (
             <div className="mx-auto max-w-xl rounded-[var(--tk-radius)] border border-dashed border-[var(--tk-line)] bg-[var(--tk-surface)] px-8 py-16 text-center">
               <Search className="mx-auto h-7 w-7 text-[var(--tk-muted)]" />
@@ -318,6 +324,7 @@ function BookmarkArchiveCard({ post, href, index }: { post: SitePost; href: stri
       </div>
     </Link>
   )
+  
 }
 
 function PdfArchiveCard({ post, href }: { post: SitePost; href: string }) {
