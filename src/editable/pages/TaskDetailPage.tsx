@@ -260,7 +260,6 @@ function ListingDetail({ post, related }: { post: SitePost; related: SitePost[] 
                 <span key={`${service}-${index}`}>{service}{index < Math.min(services.length, 6) - 1 ? ' +' : ''}</span>
               ))}
             </div>
-            <BodyContent post={post} />
             <ListingInfoStrip address={address} phone={phone} email={email} website={website} />
             <ListingServicesPanel services={services} />
             <ListingImageGallery images={images} title={post.title} />
