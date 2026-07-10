@@ -11,10 +11,6 @@ export function EditableNavbar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const { session, logout } = useEditableLocalAuthSession()
-  const taskItems = useMemo(
-    () => SITE_CONFIG.tasks.filter((task) => task.enabled).map((task) => ({ label: task.label, href: task.route })),
-    []
-  )
   const navItems = useMemo(
     () => [{label: 'Resources', href: '/sbm'}, { label: 'About', href: '/about' }, { label: 'Contact', href: '/contact' }],
     []

@@ -106,14 +106,6 @@ const leadText = (post: SitePost) => {
   return lead && lead !== stripHtml(getBody(post)) ? lead : ''
 }
 const categoryOf = (post: SitePost, fallback: string) => asText(getContent(post).category) || post.tags?.[0] || fallback
-const mapSrcFor = (post: SitePost) => {
-  const address = getField(post, ['address', 'location', 'city'])
-  const lat = getField(post, ['lat', 'latitude'])
-  const lng = getField(post, ['lng', 'lon', 'longitude'])
-  if (lat && lng) return `https://maps.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}&z=14&output=embed`
-  if (address) return `https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=13&output=embed`
-  return ''
-}
 
 export function TaskDetailView({ task, post, related, comments = [] }: { task: TaskKey; post: SitePost; related: SitePost[]; comments?: Array<{ id: string; name: string; comment: string; createdAt: string }> }) {
   return (
@@ -475,7 +467,7 @@ function ImageDetail({ post, related }: { post: SitePost; related: SitePost[] })
 function BookmarkDetail({ post, related }: { post: SitePost; related: SitePost[] }) {
   const website = getField(post, ['website', 'url', 'link'])
   const category = categoryOf(post, 'Saved resource')
-  const intro = leadText(post) || stripHtml(summaryText(post)) || 'A community-saved resource with context, topic tags, and a direct path to the original link.'
+  const intro = stripHtml(summaryText(post)) || 'A community-saved resource with context, topic tags, and a direct path to the original link.'
   const tags = bookmarkTags(post, category)
 
   return (
@@ -515,8 +507,7 @@ function BookmarkDetail({ post, related }: { post: SitePost; related: SitePost[]
                 <span key={`${tag}-${index}`}>{tag}{index < Math.min(tags.length, 6) - 1 ? ' +' : ''}</span>
               ))}
             </div>
-            <BodyContent post={post} />
-            <BookmarkResourcePanel website={website} category={category} />
+            <BookmarkResourcePanel website={website} />
             <ListingServicesPanel services={tags} />
           </article>
         </div>
@@ -547,7 +538,7 @@ function BookmarkActionRail({ website }: { website?: string }) {
   )
 }
 
-function BookmarkResourcePanel({ website, category }: { website?: string; category: string }) {
+function BookmarkResourcePanel({ website }: { website?: string }) {
   return (
     <section className="mt-12 rounded-2xl border border-black/10 bg-white/70 p-5 shadow-sm sm:p-6">
       <div className="mx-auto max-w-6xl px-4 py-6">
@@ -667,31 +658,12 @@ function ProfileDetail({ post, related }: { post: SitePost; related: SitePost[] 
 }
 
 // ----- Shared building blocks -----
-function Divider() {
-  return <div className="my-10 h-px bg-[var(--tk-line)]" />
-}
-
 function BodyContent({ post, compact = false }: { post: SitePost; compact?: boolean }) {
   return (
     <div
       className={`article-content mt-8 max-w-none text-[var(--tk-text)] ${compact ? 'text-[15px] leading-7' : 'text-[1.0625rem] leading-8'}`}
       dangerouslySetInnerHTML={{ __html: formatPlainText(getBody(post)) }}
     />
-  )
-}
-
-function InfoGrid({ items }: { items: Array<[string, string, typeof MapPin]> }) {
-  const visible = items.filter(([, value]) => value)
-  if (!visible.length) return null
-  return (
-    <div className="mt-8 grid gap-3 sm:grid-cols-2">
-      {visible.map(([label, value, Icon]) => (
-        <div key={label} className="rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] p-4">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-[var(--tk-muted)]"><Icon className="h-4 w-4 text-[var(--tk-accent)]" /> {label}</div>
-          <p className="mt-2 break-words text-sm font-medium leading-6">{value}</p>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -704,15 +676,6 @@ function ImageStrip({ images, label, large = false }: { images: string[]; label:
         {images.slice(0, large ? 4 : 8).map((image, index) => <img key={`${image}-${index}`} src={image} alt="" className="aspect-[4/3] rounded-[var(--tk-radius)] border border-[var(--tk-line)] object-cover" />)}
       </div>
     </section>
-  )
-}
-
-function MapBox({ src, label }: { src: string; label: string }) {
-  return (
-    <div className="overflow-hidden rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)]">
-      <div className="flex items-center gap-2 p-4 text-sm font-semibold"><MapPin className="h-4 w-4 text-[var(--tk-accent)]" /> {label || 'Map location'}</div>
-      <iframe src={src} title="Map" loading="lazy" className="h-72 w-full border-0" />
-    </div>
   )
 }
 
