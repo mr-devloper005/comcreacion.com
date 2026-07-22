@@ -107,6 +107,68 @@ const leadText = (post: SitePost) => {
 }
 const categoryOf = (post: SitePost, fallback: string) => asText(getContent(post).category) || post.tags?.[0] || fallback
 
+// Turns a plain-text keyword mention already present in a text block into a
+// real outbound hyperlink (e.g. "hire hacker for cell phone device" -> <a href="...">).
+// Prefers an explicit keyword/anchor field on the post; otherwise finds the
+// keyword automatically as the longest word-sequence shared by the title and
+// the intro text (generated copy repeats the focus keyword in both); falls
+// back to the target website's own hostname as a last resort.
+const hostnameOf = (url: string) => {
+  try {
+    return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.replace(/^www\./i, '')
+  } catch {
+    return ''
+  }
+}
+// Strip leading/trailing punctuation (colons, periods, quotes, etc.) so words like
+// "Gurgaon:" and "Gurgaon" or "today!" and "today" compare as equal; internal
+// characters (hyphens in "Skin-Reset", dots in "Mgmakeovers.com") are kept.
+const normalizeWord = (word: string) => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
+
+// Longest contiguous run of words shared between two strings, matched after
+// punctuation-insensitive normalization. Returns the ORIGINAL wording from
+// `source` (not `other`), so pass the text you intend to search/highlight as
+// `source` — the result is guaranteed to appear verbatim inside it. Returns
+// '' if the best overlap is too short (1 word) to be a meaningful keyword.
+const longestCommonPhrase = (source: string, other: string) => {
+  const sourceWords = source.trim().split(/\s+/)
+  const a = sourceWords.map(normalizeWord)
+  const b = other.trim().split(/\s+/).map(normalizeWord)
+  let bestLen = 0
+  let bestStart = 0
+  for (let i = 0; i < a.length; i += 1) {
+    for (let j = 0; j < b.length; j += 1) {
+      let len = 0
+      while (i + len < a.length && j + len < b.length && a[i + len] && a[i + len] === b[j + len]) len += 1
+      if (len > bestLen) {
+        bestLen = len
+        bestStart = i
+      }
+    }
+  }
+  if (bestLen < 2) return ''
+  return sourceWords.slice(bestStart, bestStart + bestLen).join(' ')
+}
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Inserts a real outbound <a> around the first plain-text occurrence of `keyword`
+// inside an already-built HTML string (e.g. the output of formatPlainText — full
+// HTML, not escaped plain text). Only touches text nodes, never tag markup/attrs,
+// and skips entirely if the HTML already contains a link (CMS-authored copy may
+// already carry its own anchor, so we don't double up).
+const KEYWORD_LINK_CLASS = 'underline decoration-current/30 underline-offset-2 transition hover:decoration-current'
+const hyperlinkKeywordInHtml = (html: string, keyword: string, url: string) => {
+  const trimmedKeyword = keyword.trim()
+  if (!html || !trimmedKeyword || !url || /<a[\s>]/i.test(html)) return html
+  const pattern = new RegExp(escapeRegExp(trimmedKeyword), 'i')
+  let linked = false
+  return html.replace(/(<[^>]*>)|([^<]+)/g, (whole: string, tag?: string, text?: string) => {
+    if (tag || linked || !text || !pattern.test(text)) return whole
+    linked = true
+    return text.replace(pattern, (match) => `<a href="${safeUrl(url)}" target="_blank" rel="nofollow noopener noreferrer" class="${KEYWORD_LINK_CLASS}">${match}</a>`)
+  })
+}
+
 export function TaskDetailView({ task, post, related, comments = [] }: { task: TaskKey; post: SitePost; related: SitePost[]; comments?: Array<{ id: string; name: string; comment: string; createdAt: string }> }) {
   return (
     <EditableSiteShell>
@@ -214,7 +276,12 @@ function ListingDetail({ post, related }: { post: SitePost; related: SitePost[] 
   const email = getField(post, ['email'])
   const website = getField(post, ['website', 'url'])
   const category = categoryOf(post, 'Services')
-  const intro = leadText(post) || stripHtml(summaryText(post)) || 'A verified business profile with useful details, contact paths, and supporting information in one focused view.'
+  const introRaw = summaryText(post) || 'A verified business profile with useful details, contact paths, and supporting information in one focused view.'
+  const introPlain = stripHtml(introRaw) || introRaw
+  const introKeyword = getField(post, ['keyword', 'focusKeyword', 'targetKeyword', 'primaryKeyword', 'anchor', 'anchorText'])
+    || longestCommonPhrase(introPlain, post.title)
+    || (website ? hostnameOf(website) : '')
+  const introHtml = website && introKeyword ? hyperlinkKeywordInHtml(formatPlainText(introRaw), introKeyword, website) : formatPlainText(introRaw)
   const services = listingServices(post, category)
 
   return (
@@ -230,7 +297,7 @@ function ListingDetail({ post, related }: { post: SitePost; related: SitePost[] 
                 <span className="rounded-full bg-[#f3f3f1] px-4 py-2 text-xs font-semibold text-black shadow-sm">{category}</span>
               </div>
               <h1 className="mt-4 text-balance text-4xl font-medium leading-[1.08] tracking-[-0.02em] text-black sm:text-5xl">{post.title}</h1>
-              <p className="mt-4 max-w-xl text-base leading-7 text-black/[0.78]">{intro}</p>
+              <div className="mt-4 max-w-xl text-base leading-7 text-black/[0.78] [&_p]:mt-3 [&_p:first-child]:mt-0" dangerouslySetInnerHTML={{ __html: introHtml }} />
               <div className="mt-6">
                 {website ? (
                   <Link href={website} target="_blank" rel="noreferrer" className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#f1543d] px-6 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-105">
@@ -466,8 +533,13 @@ function ImageDetail({ post, related }: { post: SitePost; related: SitePost[] })
 function BookmarkDetail({ post, related }: { post: SitePost; related: SitePost[] }) {
   const website = getField(post, ['website', 'url', 'link'])
   const category = categoryOf(post, 'Saved resource')
-  const intro = stripHtml(summaryText(post)) || 'A community-saved resource with context, topic tags, and a direct path to the original link.'
+  const introRaw = summaryText(post) || 'A community-saved resource with context, topic tags, and a direct path to the original link.'
+  const introPlain = stripHtml(introRaw) || introRaw
   const tags = bookmarkTags(post, category)
+  const introKeyword = getField(post, ['keyword', 'focusKeyword', 'targetKeyword', 'primaryKeyword', 'anchor', 'anchorText'])
+    || longestCommonPhrase(introPlain, post.title)
+    || (website ? hostnameOf(website) : '')
+  const introHtml = website && introKeyword ? hyperlinkKeywordInHtml(formatPlainText(introRaw), introKeyword, website) : formatPlainText(introRaw)
 
   return (
     <>
@@ -482,7 +554,7 @@ function BookmarkDetail({ post, related }: { post: SitePost; related: SitePost[]
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white"><Bookmark className="h-4 w-4" /></span>
               </div>
               <h1 className="mt-4 text-balance text-4xl font-medium leading-[1.08] tracking-[-0.02em] text-black sm:text-5xl">{post.title}</h1>
-              <p className="mt-4 max-w-xl text-base leading-7 text-black/[0.78]">{intro}</p>
+              <div className="mt-4 max-w-xl text-base leading-7 text-black/[0.78] [&_p]:mt-3 [&_p:first-child]:mt-0" dangerouslySetInnerHTML={{ __html: introHtml }} />
               {website ? (
                 <Link href={website} target="_blank" rel="noreferrer" className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#f1543d] px-6 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-105">
                   Open saved resource <ExternalLink className="h-4 w-4" />
